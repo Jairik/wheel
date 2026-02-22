@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wheel of Names</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #16213e;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #f5a623;
+      letter-spacing: 0.5px;
+    }
+
+    header span.sub {
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    .main-container {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      padding: 20px;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    /* Wheel section */
+    .wheel-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      flex: 1 1 320px;
+      max-width: 520px;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    canvas#wheel {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 50%;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+    }
+
+    /* Arrow/pointer */
+    .pointer {
+      position: absolute;
+      top: 50%;
+      right: -18px;
+      transform: translateY(-50%);
+      width: 0;
+      height: 0;
+      border-top: 18px solid transparent;
+      border-bottom: 18px solid transparent;
+      border-right: 36px solid #f5a623;
+      filter: drop-shadow(0 0 4px rgba(245,166,35,0.7));
+      z-index: 10;
+    }
+
+    /* Center circle */
+    .center-circle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #1a1a2e;
+      border: 4px solid #f5a623;
+      z-index: 10;
+    }
+
+    button#spinBtn {
+      background: linear-gradient(135deg, #f5a623, #e8850a);
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 50px;
+      padding: 14px 48px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 16px rgba(245,166,35,0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
+      width: 100%;
+      max-width: 240px;
+    }
+
+    button#spinBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(245,166,35,0.5); }
+    button#spinBtn:active { transform: translateY(0); }
+    button#spinBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .result-box {
+      background: #16213e;
+      border: 2px solid #f5a623;
+      border-radius: 12px;
+      padding: 14px 24px;
+      text-align: center;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #f5a623;
+      min-width: 240px;
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    /* Sidebar / Names section */
+    .names-section {
+      flex: 1 1 260px;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .names-section h2 {
+      font-size: 1rem;
+      color: #f5a623;
+      font-weight: 600;
+    }
+
+    textarea#nameInput {
+      width: 100%;
+      height: 200px;
+      background: #0f3460;
+      color: #eee;
+      border: 1px solid #2a4d7a;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.95rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+
+    textarea#nameInput:focus { border-color: #f5a623; }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #888;
+    }
+
+    .options-panel {
+      background: #16213e;
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .option-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .option-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #f5a623;
+      cursor: pointer;
+    }
+
+    .option-row label {
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .eliminated-list {
+      background: #0f3460;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.85rem;
+    }
+
+    .eliminated-list h3 {
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 6px;
+    }
+
+    .eliminated-list ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .eliminated-list ul li {
+      background: #c0392b;
+      color: #fff;
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 0.8rem;
+      text-decoration: line-through;
+    }
+
+    button#resetBtn {
+      background: transparent;
+      color: #888;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 7px 14px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    button#resetBtn:hover { color: #eee; border-color: #888; }
+
+    /* Winner modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .modal-overlay.show { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: #16213e;
+      border: 2px solid #f5a623;
+      border-radius: 18px;
+      padding: 36px 48px;
+      text-align: center;
+      max-width: 90vw;
+      transform: scale(0.8);
+      transition: transform 0.3s;
+    }
+
+    .modal-overlay.show .modal { transform: scale(1); }
+
+    .modal h2 { font-size: 1.1rem; color: #aaa; margin-bottom: 10px; }
+    .modal .winner-name { font-size: 2rem; font-weight: 800; color: #f5a623; margin-bottom: 20px; }
+    .modal button {
+      background: #f5a623;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 28px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* Confetti canvas */
+    #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 99; }
+
+    @media (max-width: 600px) {
+      .main-container { padding: 12px; gap: 14px; }
+      .names-section { max-width: 100%; }
+      .wheel-section { max-width: 100%; }
+      header h1 { font-size: 1.2rem; }
+      .modal { padding: 24px 20px; }
+      .modal .winner-name { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎡 Wheel of Names</h1>
+  <span class="sub">Spin to pick a winner!</span>
+</header>
+
+<div class="main-container">
+  <div class="wheel-section">
+    <div class="canvas-wrapper">
+      <canvas id="wheel" width="480" height="480"></canvas>
+      <div class="pointer"></div>
+      <div class="center-circle"></div>
+    </div>
+    <button id="spinBtn">SPIN</button>
+    <div class="result-box" id="resultBox">Click SPIN to start!</div>
+  </div>
+
+  <div class="names-section">
+    <h2>Names</h2>
+    <textarea id="nameInput" placeholder="Enter names separated by commas or new lines...">Alice, Bob, Charlie, Diana, Eve</textarea>
+    <div class="hint">Separate names with commas or new lines. Click outside to update the wheel.</div>
+
+    <div class="options-panel">
+      <div class="option-row">
+        <input type="checkbox" id="elimCheck" />
+        <label for="elimCheck">Elimination mode (remove winner each spin)</label>
+      </div>
+    </div>
+
+    <div class="eliminated-list" id="eliminatedSection" style="display:none;">
+      <h3>Eliminated</h3>
+      <ul id="eliminatedList"></ul>
+    </div>
+
+    <button id="resetBtn">↺ Reset</button>
+  </div>
+</div>
+
+<!-- Winner modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>🎉 Winner!</h2>
+    <div class="winner-name" id="modalWinner"></div>
+    <button id="modalClose">Continue</button>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+(function () {
+  'use strict';
+
+  // ─── Constants ───────────────────────────────────────────────────────────────
+  const COLORS = [
+    '#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c',
+    '#3498db','#9b59b6','#e91e63','#00bcd4','#8bc34a',
+    '#ff5722','#607d8b','#795548','#ff9800','#673ab7',
+  ];
+
+  const SPIN_DURATION        = 5000;   // ms – total animation time
+  const MIN_ROTATIONS        = 5;      // minimum full rotations before stopping
+  const WINNER_DISPLAY_DELAY = 400;    // ms – pause before showing last-standing modal
+  const ALDRIDGE_KEYWORD     = 'aldridge'; // lowercase search string
+
+  // ─── State ───────────────────────────────────────────────────────────────────
+  let names        = [];           // currently active names
+  let eliminated   = [];           // names removed in elimination mode
+  let allNames     = [];           // original list (for reset)
+  let spinning     = false;
+  let currentAngle = 0;            // radians – current wheel rotation
+  let animStart    = null;
+  let animFrom     = 0;
+  let animTo       = 0;
+  let animDuration = SPIN_DURATION;
+  let pendingWinner = '';
+
+  // ─── DOM refs ────────────────────────────────────────────────────────────────
+  const canvas          = document.getElementById('wheel');
+  const ctx             = canvas.getContext('2d');
+  const spinBtn         = document.getElementById('spinBtn');
+  const nameInput       = document.getElementById('nameInput');
+  const resultBox       = document.getElementById('resultBox');
+  const elimCheck       = document.getElementById('elimCheck');
+  const eliminatedSec   = document.getElementById('eliminatedSection');
+  const eliminatedList  = document.getElementById('eliminatedList');
+  const resetBtn        = document.getElementById('resetBtn');
+  const modalOverlay    = document.getElementById('modalOverlay');
+  const modalWinner     = document.getElementById('modalWinner');
+  const modalClose      = document.getElementById('modalClose');
+  const confettiCanvas  = document.getElementById('confetti');
+  const cctx            = confettiCanvas.getContext('2d');
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+  function hasAldridge(name) {
+    return name.toLowerCase().includes(ALDRIDGE_KEYWORD);
+  }
+
+  function aldridgeIndex() {
+    return names.findIndex(hasAldridge);
+  }
+
+  function parseNames(raw) {
+    return raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  }
+
+  function easeOut(t) {
+    // Cubic ease-out – looks natural for a spinning wheel
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  // ─── Drawing ─────────────────────────────────────────────────────────────────
+  function drawWheel(angle) {
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+    const r  = cx - 4;
+
+    ctx.clearRect(0, 0, W, H);
+
+    if (names.length === 0) {
+      ctx.fillStyle = '#0f3460';
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#aaa';
+      ctx.font = 'bold 20px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Add names to start', cx, cy);
+      return;
+    }
+
+    const slice = (Math.PI * 2) / names.length;
+
+    names.forEach((name, i) => {
+      const start = angle + i * slice;
+      const end   = start + slice;
+
+      // Segment
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, start, end);
+      ctx.closePath();
+      ctx.fillStyle = COLORS[i % COLORS.length];
+      ctx.fill();
+      ctx.strokeStyle = '#1a1a2e';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Label
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(start + slice / 2);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+
+      // Dynamic font size based on number of names
+      const fontSize = Math.max(10, Math.min(18, Math.floor(r * 0.22 / Math.max(1, names.length / 8))));
+      ctx.font = `bold ${fontSize}px Segoe UI, Arial`;
+
+      // Clip long labels
+      const maxLen = Math.floor(r * 0.55);
+      let label = name;
+      if (ctx.measureText(label).width > maxLen) {
+        while (label.length > 3 && ctx.measureText(label + '…').width > maxLen) {
+          label = label.slice(0, -1);
+        }
+        label += '…';
+      }
+
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur  = 3;
+      ctx.fillText(label, r - 14, 0);
+      ctx.restore();
+    });
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = '#f5a623';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+  }
+
+  // ─── Rigged target calculation ───────────────────────────────────────────────
+  /**
+   * Returns the index the wheel *should* land on.
+   * – If any name contains "Aldridge" → always that index.
+   * – In elimination mode → always pick a non-Aldridge name (to eliminate it),
+   *   unless only Aldridge remains.
+   */
+  function chooseTarget() {
+    const ai = aldridgeIndex();
+
+    if (elimCheck.checked) {
+      // Elimination mode: eliminate non-Aldridge names first
+      if (ai !== -1 && names.length > 1) {
+        // Pick a random non-Aldridge name to eliminate
+        const candidates = names.map((_, i) => i).filter(i => i !== ai);
+        return candidates[Math.floor(Math.random() * candidates.length)];
+      }
+      // Only Aldridge (or no Aldridge present) – pick randomly / last one
+      return Math.floor(Math.random() * names.length);
+    }
+
+    // Normal mode
+    if (ai !== -1) return ai;
+    return Math.floor(Math.random() * names.length);
+  }
+
+  /**
+   * Calculates the exact end angle so the pointer (at 3 o'clock = 0 rad)
+   * lands on the segment for `targetIndex`.
+   */
+  function calcEndAngle(targetIndex) {
+    const slice = (Math.PI * 2) / names.length;
+    // The segment's midpoint angle in a "fresh" wheel (unrotated)
+    const segMid = targetIndex * slice + slice / 2;
+    // We want segMid + endAngle ≡ 0 (mod 2π) … i.e., pointing right = pointer
+    // Pointer is at rightmost (Math.PI because we draw segments CCW starting from angle 0)
+    // Actually: pointer is at the right side. At rotation=0, segment 0 spans [0, slice].
+    // The pointer points LEFT into the wheel (right side of canvas wrapper).
+    // At canvas rotation `a`, the angle visible at the pointer (right, 0 rad) is -a.
+    // So we want: segMid + endAngle = 2πk  ⟹  endAngle = -segMid + 2πk
+    const base = -segMid;
+    // Normalise into [currentAngle + MIN_ROTATIONS*2π, ...]
+    const minEnd = animFrom + MIN_ROTATIONS * Math.PI * 2;
+    let end = base;
+    while (end < minEnd) end += Math.PI * 2;
+    // Add small random offset within the target segment (±40% of slice) for visual variety
+    end += (Math.random() - 0.5) * slice * 0.8;
+    return end;
+  }
+
+  // ─── Spin logic ──────────────────────────────────────────────────────────────
+  function startSpin() {
+    if (spinning || names.length < 2) return;
+    spinning    = true;
+    spinBtn.disabled = true;
+    resultBox.textContent = '🎡 Spinning…';
+
+    const target = chooseTarget();
+    animFrom     = currentAngle;
+    animTo       = calcEndAngle(target);
+    animStart    = null;
+    pendingWinner = names[target];
+
+    requestAnimationFrame(animStep);
+  }
+
+  function animStep(ts) {
+    if (!animStart) animStart = ts;
+    const elapsed = ts - animStart;
+    const t = Math.min(elapsed / SPIN_DURATION, 1);
+    const eased = easeOut(t);
+
+    currentAngle = animFrom + (animTo - animFrom) * eased;
+    drawWheel(currentAngle);
+
+    if (t < 1) {
+      requestAnimationFrame(animStep);
+    } else {
+      currentAngle = animTo;
+      drawWheel(currentAngle);
+      onSpinEnd();
+    }
+  }
+
+  function onSpinEnd() {
+    spinning = false;
+    spinBtn.disabled = false;
+    resultBox.textContent = `🏆 ${pendingWinner}`;
+
+    if (elimCheck.checked) {
+      // Remove winner from active names
+      const idx = names.indexOf(pendingWinner);
+      if (idx !== -1) {
+        eliminated.push(pendingWinner);
+        names.splice(idx, 1);
+      }
+      updateEliminatedUI();
+      drawWheel(currentAngle);
+
+      if (names.length === 1) {
+        // Last one standing
+        setTimeout(() => showWinner(names[0], true), WINNER_DISPLAY_DELAY);
+        return;
+      } else if (names.length === 0) {
+        return;
+      }
+    }
+
+    showWinner(pendingWinner, false);
+  }
+
+  // ─── UI helpers ──────────────────────────────────────────────────────────────
+  function showWinner(name, isLastStanding) {
+    modalWinner.textContent = name;
+    const heading = modalOverlay.querySelector('h2');
+    heading.textContent = isLastStanding ? '🏆 Last Standing!' : '🎉 Winner!';
+    modalOverlay.classList.add('show');
+    launchConfetti();
+  }
+
+  function updateEliminatedUI() {
+    if (eliminated.length > 0) {
+      eliminatedSec.style.display = '';
+      eliminatedList.innerHTML = '';
+      eliminated.forEach(n => {
+        const li = document.createElement('li');
+        li.textContent = n;
+        eliminatedList.appendChild(li);
+      });
+    } else {
+      eliminatedSec.style.display = 'none';
+    }
+  }
+
+  function refreshFromInput() {
+    allNames = parseNames(nameInput.value);
+    names    = [...allNames];
+    eliminated = [];
+    updateEliminatedUI();
+    currentAngle = 0;
+    drawWheel(0);
+    resultBox.textContent = 'Click SPIN to start!';
+  }
+
+  // ─── Confetti ────────────────────────────────────────────────────────────────
+  let confettiParticles = [];
+  let confettiRAF = null;
+
+  function launchConfetti() {
+    confettiCanvas.width  = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+    confettiParticles = Array.from({length: 120}, () => ({
+      x:  Math.random() * confettiCanvas.width,
+      y: -20 - Math.random() * 100,
+      r:  4 + Math.random() * 6,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: 2 + Math.random() * 4,
+      alpha: 1,
+    }));
+    if (confettiRAF) cancelAnimationFrame(confettiRAF);
+    animateConfetti();
+  }
+
+  function animateConfetti() {
+    cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    let alive = false;
+    confettiParticles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.alpha -= 0.008;
+      if (p.alpha > 0 && p.y < confettiCanvas.height + 20) {
+        alive = true;
+        cctx.globalAlpha = p.alpha;
+        cctx.fillStyle = p.color;
+        cctx.beginPath();
+        cctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        cctx.fill();
+      }
+    });
+    cctx.globalAlpha = 1;
+    if (alive) confettiRAF = requestAnimationFrame(animateConfetti);
+  }
+
+  // ─── Event listeners ─────────────────────────────────────────────────────────
+  spinBtn.addEventListener('click', startSpin);
+
+  nameInput.addEventListener('change', refreshFromInput);
+  nameInput.addEventListener('blur',   refreshFromInput);
+
+  elimCheck.addEventListener('change', () => {
+    // Reset eliminated list when toggling mode
+    names    = [...allNames];
+    eliminated = [];
+    updateEliminatedUI();
+    drawWheel(currentAngle);
+  });
+
+  resetBtn.addEventListener('click', () => {
+    allNames = parseNames(nameInput.value);
+    names    = [...allNames];
+    eliminated = [];
+    currentAngle = 0;
+    updateEliminatedUI();
+    drawWheel(0);
+    resultBox.textContent = 'Click SPIN to start!';
+  });
+
+  modalClose.addEventListener('click', () => {
+    modalOverlay.classList.remove('show');
+    cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    if (confettiRAF) { cancelAnimationFrame(confettiRAF); confettiRAF = null; }
+  });
+
+  window.addEventListener('resize', () => {
+    confettiCanvas.width  = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  });
+
+  // ─── Init ────────────────────────────────────────────────────────────────────
+  refreshFromInput();
+
+}());
+</script>
+</body>
+</html>
