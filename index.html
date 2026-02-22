@@ -37,6 +37,51 @@
       color: #aaa;
     }
 
+    button#musicBtn {
+      margin-left: auto;
+      background: transparent;
+      color: #f5a623;
+      border: 1px solid #f5a623;
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      line-height: 1;
+    }
+    button#musicBtn:hover { background: rgba(245,166,35,0.15); }
+
+    button#rigBtn {
+      background: transparent;
+      color: #f5a623;
+      border: 1px solid rgba(245,166,35,0.45);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+      line-height: 1;
+      opacity: 0.75;
+    }
+    button#rigBtn:hover {
+      background: rgba(245,166,35,0.12);
+      border-color: rgba(245,166,35,0.8);
+      opacity: 1;
+    }
+
+    button#fullscreenBtn {
+      background: transparent;
+      color: #f5a623;
+      border: 1px solid #f5a623;
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      line-height: 1;
+    }
+    button#fullscreenBtn:hover { background: rgba(245,166,35,0.15); }
+
     .main-container {
       flex: 1;
       display: flex;
@@ -306,6 +351,9 @@
 <header>
   <h1>🎡 Wheel of Names</h1>
   <span class="sub">Spin to pick a winner!</span>
+  <button id="musicBtn" title="Mute music">🎵</button>
+  <button id="rigBtn" title="Toggle rig mode">🎲</button>
+  <button id="fullscreenBtn" title="Enter fullscreen">⛶</button>
 </header>
 
 <div class="main-container">
@@ -357,15 +405,17 @@
 
   // ─── Constants ───────────────────────────────────────────────────────────────
   const COLORS = [
-    '#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c',
-    '#3498db','#9b59b6','#e91e63','#00bcd4','#8bc34a',
-    '#ff5722','#607d8b','#795548','#ff9800','#673ab7',
+    '#a93226','#a04000','#9a7d0a','#1e8449','#117a65',
+    '#1a6fa8','#6c3483','#a31a5b','#00838f','#558b2f',
+    '#bf360c','#37474f','#4e342e','#e65100','#4527a0',
   ];
 
   const SPIN_DURATION        = 5000;   // ms – total animation time
   const MIN_ROTATIONS        = 5;      // minimum full rotations before stopping
   const WINNER_DISPLAY_DELAY = 400;    // ms – pause before showing last-standing modal
   const ALDRIDGE_KEYWORD     = 'aldridge'; // lowercase search string
+  const MUSIC_LOOP_URL       = 'https://cdn.freesound.org/previews/651/651797_1391542-lq.mp3';
+  const SUCCESS_SOUND_PATH   = 'assets/success.mp3';
 
   // ─── State ───────────────────────────────────────────────────────────────────
   let names        = [];           // currently active names
@@ -378,6 +428,8 @@
   let animTo       = 0;
   let animDuration = SPIN_DURATION;
   let pendingWinner = '';
+  let lastTickSeg   = -1;
+  let riggingEnabled = false;
 
   // ─── DOM refs ────────────────────────────────────────────────────────────────
   const canvas          = document.getElementById('wheel');
@@ -394,6 +446,9 @@
   const modalClose      = document.getElementById('modalClose');
   const confettiCanvas  = document.getElementById('confetti');
   const cctx            = confettiCanvas.getContext('2d');
+  const musicBtn        = document.getElementById('musicBtn');
+  const rigBtn          = document.getElementById('rigBtn');
+  const fullscreenBtn   = document.getElementById('fullscreenBtn');
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function hasAldridge(name) {
@@ -411,6 +466,159 @@
   function easeOut(t) {
     // Cubic ease-out – looks natural for a spinning wheel
     return 1 - Math.pow(1 - t, 3);
+  }
+
+  function syncRigUI() {
+    rigBtn.textContent = riggingEnabled ? '🎯' : '🎲';
+    rigBtn.title = riggingEnabled ? 'Rig mode on (click for fair)' : 'Fair mode on (click to rig)';
+    rigBtn.setAttribute('aria-label', rigBtn.title);
+  }
+
+  function toggleRigging() {
+    riggingEnabled = !riggingEnabled;
+    syncRigUI();
+  }
+
+  // ─── Audio ───────────────────────────────────────────────────────────────────
+  let audioCtx      = null;
+  let noiseBuffer   = null;
+  let musicEnabled  = true;
+  let bgMusic       = null;
+  let successSound  = null;
+
+  function ensureNoiseBuffer() {
+    if (!audioCtx || noiseBuffer) return;
+    const len = Math.floor(audioCtx.sampleRate * 0.08);
+    noiseBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < len; i += 1) data[i] = (Math.random() * 2 - 1) * 0.9;
+  }
+
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    ensureNoiseBuffer();
+
+    if (!bgMusic) {
+      bgMusic = new Audio(MUSIC_LOOP_URL);
+      bgMusic.loop = true;
+      bgMusic.volume = 0.22;
+      bgMusic.preload = 'auto';
+    }
+
+    if (!successSound) {
+      successSound = new Audio(SUCCESS_SOUND_PATH);
+      successSound.preload = 'auto';
+      successSound.volume = 0.95;
+    }
+
+    if (musicEnabled) {
+      bgMusic.play().catch(() => {});
+    }
+  }
+
+  function setMusicEnabled(on) {
+    musicEnabled = on;
+    if (!bgMusic) return;
+    if (on) {
+      bgMusic.play().catch(() => {});
+    } else {
+      bgMusic.pause();
+    }
+  }
+
+  function playTick(progress) {
+    if (!audioCtx) return;
+    ensureNoiseBuffer();
+    const now = audioCtx.currentTime;
+    const speed = 1 - progress;
+    const clickFreq = 1000 + speed * 1300;
+
+    const src = audioCtx.createBufferSource();
+    src.buffer = noiseBuffer;
+    const band = audioCtx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.setValueAtTime(clickFreq, now);
+    band.Q.setValueAtTime(10, now);
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(0.0001, now);
+    noiseGain.gain.linearRampToValueAtTime(0.14 + speed * 0.07, now + 0.0015);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.028);
+    src.connect(band); band.connect(noiseGain); noiseGain.connect(audioCtx.destination);
+    src.start(now); src.stop(now + 0.03);
+
+    const body = audioCtx.createOscillator();
+    const bodyGain = audioCtx.createGain();
+    body.type = 'triangle';
+    body.frequency.setValueAtTime(170 + speed * 70, now);
+    body.frequency.exponentialRampToValueAtTime(95, now + 0.04);
+    bodyGain.gain.setValueAtTime(0.0001, now);
+    bodyGain.gain.linearRampToValueAtTime(0.08, now + 0.003);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+    body.connect(bodyGain); bodyGain.connect(audioCtx.destination);
+    body.start(now); body.stop(now + 0.055);
+  }
+
+  function playSpinStart() {
+    if (!audioCtx) return;
+    ensureNoiseBuffer();
+    const now = audioCtx.currentTime;
+
+    const hiss = audioCtx.createBufferSource();
+    hiss.buffer = noiseBuffer;
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(1200, now);
+    const hissGain = audioCtx.createGain();
+    hissGain.gain.setValueAtTime(0.0001, now);
+    hissGain.gain.linearRampToValueAtTime(0.07, now + 0.03);
+    hissGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    hiss.connect(hp); hp.connect(hissGain); hissGain.connect(audioCtx.destination);
+    hiss.start(now); hiss.stop(now + 0.17);
+
+    const osc = audioCtx.createOscillator();
+    const g   = audioCtx.createGain();
+    osc.type  = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(520, now + 0.18);
+    g.gain.setValueAtTime(0.12, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.23);
+  }
+
+  function playSuccessSound() {
+    if (!successSound) return;
+    successSound.currentTime = 0;
+    successSound.play().catch(() => {});
+  }
+
+  // ─── Fullscreen ─────────────────────────────────────────────────────────────
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function updateFullscreenButton() {
+    const inFs = isFullscreen();
+    fullscreenBtn.textContent = inFs ? '🡼' : '⛶';
+    fullscreenBtn.title = inFs ? 'Exit fullscreen' : 'Enter fullscreen';
+  }
+
+  async function toggleFullscreen() {
+    const docEl = document.documentElement;
+    const requestFs = docEl.requestFullscreen || docEl.webkitRequestFullscreen;
+    const exitFs = document.exitFullscreen || document.webkitExitFullscreen;
+    try {
+      if (!isFullscreen()) {
+        if (requestFs) await requestFs.call(docEl);
+      } else if (exitFs) {
+        await exitFs.call(document);
+      }
+    } catch (err) {
+      // Ignore browser restrictions silently; button state still refreshes.
+    }
+    updateFullscreenButton();
   }
 
   // ─── Drawing ─────────────────────────────────────────────────────────────────
@@ -497,6 +705,10 @@
    *   unless only Aldridge remains.
    */
   function chooseTarget() {
+    if (!riggingEnabled) {
+      return Math.floor(Math.random() * names.length);
+    }
+
     const ai = aldridgeIndex();
 
     if (elimCheck.checked) {
@@ -542,6 +754,9 @@
   // ─── Spin logic ──────────────────────────────────────────────────────────────
   function startSpin() {
     if (spinning || names.length < 2) return;
+    initAudio();
+    playSpinStart();
+    lastTickSeg = -1;
     spinning    = true;
     spinBtn.disabled = true;
     resultBox.textContent = '🎡 Spinning…';
@@ -562,6 +777,17 @@
     const eased = easeOut(t);
 
     currentAngle = animFrom + (animTo - animFrom) * eased;
+
+    // Tick sound on each segment boundary
+    if (names.length > 0) {
+      const slice = (Math.PI * 2) / names.length;
+      const seg = Math.floor(currentAngle / slice);
+      if (seg !== lastTickSeg) {
+        if (lastTickSeg !== -1) playTick(t);
+        lastTickSeg = seg;
+      }
+    }
+
     drawWheel(currentAngle);
 
     if (t < 1) {
@@ -606,6 +832,7 @@
     const heading = modalOverlay.querySelector('h2');
     heading.textContent = isLastStanding ? '🏆 Last Standing!' : '🎉 Winner!';
     modalOverlay.classList.add('show');
+    playSuccessSound();
     launchConfetti();
   }
 
@@ -676,6 +903,20 @@
   // ─── Event listeners ─────────────────────────────────────────────────────────
   spinBtn.addEventListener('click', startSpin);
 
+  rigBtn.addEventListener('click', toggleRigging);
+
+  musicBtn.addEventListener('click', () => {
+    initAudio();
+    musicEnabled = !musicEnabled;
+    musicBtn.textContent = musicEnabled ? '🎵' : '🔇';
+    musicBtn.title = musicEnabled ? 'Mute music' : 'Unmute music';
+    setMusicEnabled(musicEnabled);
+  });
+
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+  document.addEventListener('fullscreenchange', updateFullscreenButton);
+  document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+
   nameInput.addEventListener('change', refreshFromInput);
   nameInput.addEventListener('blur',   refreshFromInput);
 
@@ -710,6 +951,8 @@
 
   // ─── Init ────────────────────────────────────────────────────────────────────
   refreshFromInput();
+  syncRigUI();
+  updateFullscreenButton();
 
 }());
 </script>
